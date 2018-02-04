@@ -1,0 +1,130 @@
+/**
+ * whodunit.c
+ *
+ * - Kunal Chaudhary Rajora , Kunal Yadav , Kshitiz Rawat. 
+ * Produces original image from distorted image
+ */
+       
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "bmp.h"
+
+int main(int argc, char* argv[])
+{
+    // ensure proper usage
+    if (argc != 3)
+    {
+        printf("Usage: ./copy infile outfile\n");
+        return 1;
+    }
+
+    // remember filenames
+    char* infile = argv[1];
+    char* outfile = argv[2];
+
+    // open input file 
+    FILE* inptr = fopen(infile, "r");
+    if (inptr == NULL)
+    {
+        printf("Could not open %s.\n", infile);
+        return 2;
+    }
+
+    // open output file
+    FILE* outptr = fopen(outfile, "w");
+    if (outptr == NULL)
+    {
+        fclose(inptr);
+        fprintf(stderr, "Could not create %s.\n", outfile);
+        return 3;
+    }
+
+	// pixel info about the distorted image
+	FILE* pixel_info = fopen("verdict.txt", "r");
+
+    // read infile's BITMAPFILEHEADER
+    BITMAPFILEHEADER bf;
+    fread(&bf, sizeof(BITMAPFILEHEADER), 1, inptr);
+
+    // read infile's BITMAPINFOHEADER
+    BITMAPINFOHEADER bi;
+    fread(&bi, sizeof(BITMAPINFOHEADER), 1, inptr);
+
+    // ensure infile is (likely) a 24-bit uncompressed BMP 4.0
+    if (bf.bfType != 0x4d42 || bf.bfOffBits != 54 || bi.biSize != 40 || 
+        bi.biBitCount != 24 || bi.biCompression != 0)
+    {
+        fclose(outptr);
+        fclose(inptr);
+        fprintf(stderr, "Unsupported file format.\n");
+        return 4;
+    }
+
+    // write outfile's BITMAPFILEHEADER
+    fwrite(&bf, sizeof(BITMAPFILEHEADER), 1, outptr);
+
+    // write outfile's BITMAPINFOHEADER
+    fwrite(&bi, sizeof(BITMAPINFOHEADER), 1, outptr);
+
+    // determine padding for scanlines
+    int padding =  (4 - (bi.biWidth * sizeof(RGBTRIPLE)) % 4) % 4;
+	//printf("%d\n", RAND_MAX);
+	
+	// randomly generate numbers using 0 as seed
+	srand(0);
+    // iterate over infile's scanlines
+    for (int i = 0, biHeight = abs(bi.biHeight); i < biHeight; i++)
+    {
+        // iterate over pixels in scanline
+        for (int j = 0; j < bi.biWidth; j++)
+        {
+        	// generating a random number between 0 and RAND_MAX
+			int ran = rand();
+            // temporary storage
+            RGBTRIPLE triple;
+			
+            // read RGB triple from infile
+            fread(&triple, sizeof(RGBTRIPLE), 1, inptr);
+			int red = triple.rgbtRed;
+			int green = triple.rgbtGreen;
+			int blue = triple.rgbtBlue;
+			// the red color is converted to original info...
+			if (ran < 2000000000){
+				int red1, green1, blue1;            
+				if (red == 255 && green == 000 && blue == 000)
+		        {
+		        	// get pixel info from verdict.txt
+					fscanf(pixel_info, "%d %d %d", &red1, &green1, &blue1);
+		            // overwrite pixels of distorted image
+		            triple.rgbtRed = red1;
+		            triple.rgbtGreen = green1;
+		            triple.rgbtBlue = blue1;
+		        }
+			}
+            // write RGB triple to outfile
+            fwrite(&triple, sizeof(RGBTRIPLE), 1, outptr);
+        }
+
+        // skip over padding, if any
+        fseek(inptr, padding, SEEK_CUR);
+
+        // then add it back (to demonstrate how)
+        for (int k = 0; k < padding; k++)
+        {
+            fputc(0x00, outptr);
+        }
+    }
+
+    // close infile
+    fclose(inptr);
+
+    // close outfile
+    fclose(outptr);
+
+	// close pixel_info
+	fclose(pixel_info);
+
+    // that's all folks
+    return 0;
+}
